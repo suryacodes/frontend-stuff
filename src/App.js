@@ -1,24 +1,47 @@
-import logo from './logo.svg';
-import './App.css';
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+
+function Home() {
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold">
+        Home Page {new Date().getFullYear()}
+      </h1>
+      <p>Welcome to the home page!</p>
+      <iframe
+        src="https://pp-demo-trusted-site.glitch.me"
+        allow="geolocation"
+      ></iframe>
+    </div>
+  );
+}
+
+function Profile() {
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold">Profile Page</h1>
+      <p>This is your profile page.</p>
+    </div>
+  );
+}
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Router>
+      <div className="p-4">
+        <nav className="mb-4">
+          <Link to="/" className="mr-4 text-blue-500 hover:underline">
+            Home
+          </Link>
+          <Link to="/profile" className="text-blue-500 hover:underline">
+            Profile
+          </Link>
+        </nav>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/profile" element={<Profile />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
