@@ -1,48 +1,49 @@
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
 
-function Home() {
+function MyForm() {
+  const [csrfToken, setCsrfToken] = useState("");
+  const [name, setName] = useState("");
+
+  // Fetch the CSRF token when the component mounts
+  useEffect(() => {
+    fetch("http://localhost:3001/csrf-token", { credentials: "include" })
+      .then((response) => response.json())
+      .then((data) => setCsrfToken(data.csrfToken))
+      .catch((error) => console.error("Error fetching CSRF token:", error));
+  }, []);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    fetch("http://localhost:3001/submit", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name, _csrf: csrfToken }),
+    })
+      .then((response) => response.text())
+      .then((data) => alert(data))
+      .catch((error) => console.error("Error submitting form:", error));
+  };
+
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">
-        Home Page {new Date().getFullYear()}
-      </h1>
-      <p>Welcome to the home page!</p>
-      <iframe
-        src="https://pp-demo-trusted-site.glitch.me"
-        allow="geolocation"
-      ></iframe>
-    </div>
+    <form onSubmit={handleSubmit}>
+      {/* Hidden field to include the CSRF token */}
+      <input type="hidden" name="_csrf" value={csrfToken} />
+      <label>
+        Name:
+        <input
+          type="text"
+          name="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </label>
+      <button type="submit">Submit</button>
+    </form>
   );
 }
 
-function Profile() {
-  return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Profile Page</h1>
-      <p>This is your profile page.</p>
-    </div>
-  );
-}
-
-function App() {
-  return (
-    <Router>
-      <div className="p-4">
-        <nav className="mb-4">
-          <Link to="/" className="mr-4 text-blue-500 hover:underline">
-            Home
-          </Link>
-          <Link to="/profile" className="text-blue-500 hover:underline">
-            Profile
-          </Link>
-        </nav>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/profile" element={<Profile />} />
-        </Routes>
-      </div>
-    </Router>
-  );
-}
-
-export default App;
+export default MyForm;
