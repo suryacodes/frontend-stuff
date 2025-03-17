@@ -1,106 +1,59 @@
-import React, { useState, useEffect } from "react";
-import { addProduct, getAllProduct, updateProduct } from "./indexDB";
-const worker = new Worker(new URL("worker.js", import.meta.url), {
-  type: "module",
-});
+import { useState, useEffect } from "react";
 
-const products = Array.from({ length: 20 }, (_, index) => ({
-  product_id: index + 1,
-  name: `Product ${index + 1}`,
-  quantity: Math.floor(Math.random() * 100) + 1,
-}));
-
-const ProductGrid = () => {
-  const [cart, setCart] = useState([]);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+const LongPolling = () => {
+  const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    let isMounted = true;
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
+    const pollServer = async () => {
+      try {
+        const response = await fetch("http://localhost:4000/poll/?user_id=1");
+        if (!response.ok) throw new Error("Server error");
+
+        const data = await response.json();
+        if (isMounted) {
+          setMessages((prev) => [...prev, data.message]); // Fix: Use single message
+          pollServer(); // Recursive polling
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+        if (isMounted) setTimeout(pollServer, 3000); // Retry after 3s
+      }
+    };
+
+    pollServer();
 
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+      isMounted = false; // Cleanup to prevent memory leaks
     };
   }, []);
 
-  // Load offline cart from IndexedDB
-  useEffect(() => {
-    if (!isOnline) {
-      getAllProduct().then((offlineCart) => setCart(offlineCart));
-    }
-    if (isOnline) {
-      worker.postMessage("sync with server");
-    }
+  const sendMessage = async () => {
     try {
-      worker.onmessage = function (event) {
-        console.log("Main thread received:", event.data);
-      };
-    } catch (err) {
-      console.log("worker", err);
-    }
-  }, [isOnline]);
+      const response = await fetch("http://localhost:4000/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Hello from client!", user_id: 1 }),
+      });
 
-  const addToCart = async (product) => {
-    const existingItem = cart.find(
-      (item) => item.product_id === product.product_id
-    );
-
-    if (existingItem) {
-      const updatedCart = cart.map((item) =>
-        item.product_id === product.product_id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      );
-      setCart(updatedCart);
-      if (!isOnline)
-        await updateProduct(existingItem.product_id, {
-          quantity: existingItem.quantity + 1,
-        });
-    } else {
-      const newProduct = { ...product, quantity: 1 };
-      setCart([...cart, newProduct]);
-      if (!isOnline) await addProduct(newProduct);
+      if (!response.ok) throw new Error("Failed to send message");
+    } catch (error) {
+      console.error("Send message error:", error);
     }
   };
 
   return (
-    <div className="container py-4">
-      <h1 className="h2 mb-4">Product Grid</h1>
-      <div className="row g-4">
-        {products.map((product) => (
-          <div key={product.product_id} className="col-md-4">
-            <div className="card">
-              <div className="card-body">
-                <h2 className="h5">{product.name}</h2>
-                <p>Stock: {product.quantity}</p>
-                <button
-                  className="btn btn-primary mt-2"
-                  onClick={() => addToCart(product)}
-                >
-                  Add to Cart
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <h2 className="h3 mt-5">Cart ({isOnline ? "Online" : "Offline"})</h2>
-      <ul className="list-group mt-3">
-        {cart.map((item) => (
-          <li key={item.product_id} className="list-group-item">
-            {item.name} - Quantity: {item.quantity}
-          </li>
+    <div>
+      <h2>Long Polling Chat</h2>
+      <button onClick={sendMessage}>Send Message</button>
+      <ul>
+        {messages.map((msg, index) => (
+          <li key={index}>{msg}</li>
         ))}
       </ul>
     </div>
   );
 };
 
-export default ProductGrid;
-
-// Let me know if you want any improvements, like cart item removal or syncing offline data when back online! 🚀
+export default LongPolling;

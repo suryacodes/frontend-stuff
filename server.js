@@ -1,36 +1,44 @@
 const express = require("express");
 const cors = require("cors");
 const port = 4000;
-const path = require("path");
 
 const app = express();
 
-const products = Array.from({ length: 20 }, (_, index) => ({
-  product_id: index + 1,
-  name: `Product ${index + 1}`,
-  quantity: Math.floor(Math.random() * 100) + 1,
-}));
-
-app.use(express.json({ type: ["application/json"] }));
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 
-// Serve static files from the React build folder
-app.use(express.static(path.join(__dirname, "build")));
+let clients = [];
 
-app.get("/api/products", (req, res) => {
-  res.json(products);
+app.get("/poll", (req, res) => {
+  const userId = req.query.user_id;
+  if (!userId) {
+    return res.status(400).json({ error: "user_id is required" });
+  }
+
+  clients.push({ userId: Number(userId), client: res });
+
+  res.on("close", () => {
+    clients = clients.filter((client) => client.userId !== userId);
+  });
 });
 
-app.post("/api/products", (req, res) => {
-  console.log(req.body);
+app.post("/send", (req, res) => {
+  const { user_id, message } = req.body;
+  if (!user_id || !message) {
+    return res.status(400).json({ error: "user_id and message are required" });
+  }
+
+  clients = clients.filter((client) => {
+    if (client.userId === user_id) {
+      client.client.status(200).json({ message });
+      return false; // Remove the client after responding
+    }
+    return true;
+  });
+
   res.sendStatus(200);
-});
-
-// Catch-all route to serve React's index.html (for React Router)
-app.get("/*", (req, res) => {
-  res.sendFile(path.join(__dirname, "build", "index.html"));
 });
 
 app.listen(port, () => {
