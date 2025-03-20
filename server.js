@@ -1,46 +1,65 @@
 const express = require("express");
 const cors = require("cors");
+const { Server } = require("socket.io");
+const http = require("http");
+
 const port = 4000;
-
 const app = express();
+const server = http.createServer(app);
 
+// CORS Middleware
+app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
-
-let clients = [];
-
-app.get("/poll", (req, res) => {
-  const userId = req.query.user_id;
-  if (!userId) {
-    return res.status(400).json({ error: "user_id is required" });
-  }
-
-  clients.push({ userId: Number(userId), client: res });
-
-  res.on("close", () => {
-    clients = clients.filter((client) => client.userId !== userId);
-  });
+// Initialize Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    credentials: true,
+  },
 });
 
-app.post("/send", (req, res) => {
-  const { user_id, message } = req.body;
-  if (!user_id || !message) {
-    return res.status(400).json({ error: "user_id and message are required" });
-  }
+const userSocketMap = {}; // Stores userId -> socketId mappings
 
-  clients = clients.filter((client) => {
-    if (client.userId === user_id) {
-      client.client.status(200).json({ message });
-      return false; // Remove the client after responding
+io.on("connection", (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  // Register a user
+  socket.on("register", (userId) => {
+    if (!userId) return;
+    userSocketMap[userId] = socket.id;
+    console.log(`User ${userId} registered with socket ID ${socket.id}`);
+  });
+
+  // Handle sending messages
+  socket.on("sendMessage", ({ userId, toUserId, message }) => {
+    if (!userId || !toUserId || !message) return;
+
+    const recipientSocketId = userSocketMap[toUserId];
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit("receiveMessage", {
+        from: userId,
+        message,
+      });
+    } else {
+      console.log(`User ${toUserId} is not connected.`);
     }
-    return true;
   });
 
-  res.sendStatus(200);
+  // Handle user disconnection
+  socket.on("disconnect", () => {
+    console.log(`User disconnected: ${socket.id}`);
+
+    // Remove user from the map
+    Object.keys(userSocketMap).forEach((userId) => {
+      if (userSocketMap[userId] === socket.id) {
+        delete userSocketMap[userId];
+      }
+    });
+  });
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });

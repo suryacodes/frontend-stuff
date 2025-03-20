@@ -1,52 +1,56 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 
-const LongPolling = () => {
+const socket = io("http://localhost:4000", {
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 5000,
+});
+
+const App = () => {
   const [messages, setMessages] = useState([]);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    let isMounted = true;
+    const user1 = localStorage.getItem("user1");
 
-    const pollServer = async () => {
-      try {
-        const response = await fetch("http://localhost:4000/poll/?user_id=1");
-        if (!response.ok) throw new Error("Server error");
+    // Register user when the component mounts
+    if (user1) {
+      socket.emit("register", user1);
+    }
 
-        const data = await response.json();
-        if (isMounted) {
-          setMessages((prev) => [...prev, data.message]); // Fix: Use single message
-          pollServer(); // Recursive polling
-        }
-      } catch (error) {
-        console.error("Polling error:", error);
-        if (isMounted) setTimeout(pollServer, 3000); // Retry after 3s
-      }
-    };
+    // Listen for incoming messages
+    socket.on("receiveMessage", (data) => {
+      setMessages((prev) => [...prev, `${data.from}: ${data.message}`]);
+    });
 
-    pollServer();
-
+    // Cleanup event listener on unmount
     return () => {
-      isMounted = false; // Cleanup to prevent memory leaks
+      socket.off("receiveMessage");
     };
   }, []);
 
-  const sendMessage = async () => {
-    try {
-      const response = await fetch("http://localhost:4000/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Hello from client!", user_id: 1 }),
-      });
+  // Send message function
+  const sendMessage = () => {
+    const user1 = localStorage.getItem("user1");
+    const user2 = localStorage.getItem("user2");
 
-      if (!response.ok) throw new Error("Failed to send message");
-    } catch (error) {
-      console.error("Send message error:", error);
-    }
+    if (!message.trim() || !user1 || !user2) return;
+
+    socket.emit("sendMessage", { userId: user1, toUserId: user2, message });
+    setMessage(""); // Clear input field
   };
 
   return (
     <div>
-      <h2>Long Polling Chat</h2>
-      <button onClick={sendMessage}>Send Message</button>
+      <h2>Socket.IO Chat - {localStorage.getItem("user1")}</h2>
+      <input
+        type="text"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Type a message..."
+      />
+      <button onClick={sendMessage}>Send</button>
       <ul>
         {messages.map((msg, index) => (
           <li key={index}>{msg}</li>
@@ -56,4 +60,4 @@ const LongPolling = () => {
   );
 };
 
-export default LongPolling;
+export default App;
