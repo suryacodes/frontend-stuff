@@ -1,0 +1,23 @@
+.container-hm {
+  display: grid;
+  grid-template-rows: 80px 1fr;
+  grid-template-columns: 68px 1fr 250px;
+  background-color: #0f172a;
+  grid-template-areas:
+    "header header header"
+    "sidebar main cartsidebar";
+  width: 100vw;
+  height: 100vh;
+}
+
+.container-sidebar {
+  grid-area: sidebar;
+  background-color: #0f172a;
+  border-right: 1px solid #1e293b;
+}
+
+.container-cart {
+  grid-area: cartsidebar;
+  background-color: #334155;
+  border-left: 1px solid #1e293b;
+}
